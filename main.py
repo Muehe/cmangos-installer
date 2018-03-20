@@ -6,39 +6,52 @@ import os
 import subprocess
 import MySQLdb as mysql
 
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGroupBox, QVBoxLayout, QGridLayout, QPushButton, QTabWidget, QMessageBox
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGroupBox, QVBoxLayout, QGridLayout, QPushButton, QTabWidget, QMessageBox, QDialog
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import QObject, pyqtSlot
 
 
 from status import *
 from versionTab import *
+from installer import *
 
 DEVNULL = open(os.devnull, 'w')
 
 class Cmangos(QWidget):
     def __init__(self):
         super().__init__()
-        self.status = Status()
+        self.__getLogin()
+        self.status = Status(self)
+        self.installer = Installer('')
         self.mainLayout = QGridLayout()
         self.statusTexts = {
             'mysql_client': 'MySQL client found',
             'mysql_server': 'MySQL server found',
             'mysql_running': 'MySQL server status',
+            'mysql_connection': 'MySQL user login',
         }
-        self.move(2220,300) # TODO Sane value on first screen
         self.setWindowTitle('CMaNGOS Control Center')
-        self.__getLogin()
+        self.setWindowIcon(QIcon('cmangos.ico'))
         self.__initUI()
 
     def __getLogin(self):
         dialog = QDialog(self)
         layout = QFormLayout()
         layout.addRow(QLabel('User:'))
-        user = QLineEdit('mangos')
+        try:
+            getattr(self, 'user')
+            name = self.user
+        except:
+            name = 'mangos'
+        user = QLineEdit(name)
         layout.addRow(user)
         layout.addRow(QLabel('Password:'))
-        pw = QLineEdit('mangos')
+        try:
+            getattr(self, 'pw')
+            p = self.pw
+        except:
+            p = 'mangos'
+        pw = QLineEdit(p)
         pw.setEchoMode(QLineEdit.Password)
         layout.addRow(pw)
         buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, dialog)
@@ -47,9 +60,13 @@ class Cmangos(QWidget):
         buttonBox.accepted.connect(dialog.accept)
         buttonBox.rejected.connect(dialog.reject)
         dialog.setWindowTitle('MySQL')
+        dialog.move(self.pos())
         if(dialog.exec_()):
-            self.user = user
-            self.pw = pw
+            self.user = user.text()
+            self.pw = pw.text()
+        else:
+            self.user = name
+            self.pw = p
 
     def __update(self):
         stat = self.status
@@ -62,6 +79,15 @@ class Cmangos(QWidget):
                 +
                 (label if label not in texts else texts[label])
             )
+        if not stat.stats['mysql_connection']:
+            self.createButton.show()
+        else:
+            self.createButton.hide()
+        try:
+            for tab in self.tabWidgets:
+                tab.update()
+        except:
+            return
 
     def __initStatusLabel(self, status):
         f = QFont('DejaVu Sans Mono', 10)
@@ -77,23 +103,67 @@ class Cmangos(QWidget):
     def currentChangedStatus(self, index):
         self.tabs.setCurrentIndex(index)
 
+    def __create(self):
+        if self.user == None or self.pw == None:
+            return
+        dialog = QDialog(self)
+        layout = QFormLayout()
+        layout.addRow(QLabel('MySQL Root Password:'))
+        root = QLineEdit('')
+        root.setEchoMode(QLineEdit.Password)
+        layout.addRow(root)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, dialog)
+        layout.addRow(buttonBox)
+        dialog.setLayout(layout)
+        buttonBox.accepted.connect(dialog.accept)
+        buttonBox.rejected.connect(dialog.reject)
+        if(dialog.exec_()):
+            self.setWindowTitle('Creatin user... ')
+            self.setDisabled(True)
+            self.blockSignals(True)
+            QApplication.processEvents()
+            try:
+                self.installer.createUser(root.text(), self.user, self.pw)
+                msg = QMessageBox()
+                msg.setText('User `{}` successfully created.'.format(self.user))
+                msg.exec_()
+                self.createButton.hide()
+                self.__update()
+            except:
+                msg = QMessageBox()
+                msg.setText('Failed creating user `{}`.'.format(self.user))
+                msg.exec_()
+            self.blockSignals(False)
+            self.setEnabled(True)
+            self.setWindowTitle('CMangos Control Center')
+
+    def __resetLogin(self):
+        self.__getLogin()
+        self.__update()
+
     def __initUI(self):
-        self.statusBox = QGroupBox('Status', self)
+        self.statusBox = QGroupBox('MySQL status', self)
         self.statusLabels = {}
         self.statusLayout = QVBoxLayout()
         for label in self.statusTexts:
             self.__initStatusLabel(label)
-        self.__update()
         btn = QPushButton('🔄 Refresh')
         btn.clicked.connect(self.__update)
         self.statusLayout.addWidget(btn)
+        btn = QPushButton('Set User Login')
+        btn.clicked.connect(self.__resetLogin)
+        self.statusLayout.addWidget(btn)
+        self.createButton = QPushButton('Create User')
+        self.createButton.clicked.connect(self.__create)
+        self.statusLayout.addWidget(self.createButton)
         self.statusBox.setLayout(self.statusLayout)
+        self.__update()
 
         self.tabs = QTabWidget()
         self.tabWidgets = []
-        self.tabWidgets.append(VersionTab('classic', self.user, self.pw, self))
-        self.tabWidgets.append(VersionTab('tbc', self.user, self.pw, self))
-        self.tabWidgets.append(VersionTab('wotlk', self.user, self.pw, self))
+        self.tabWidgets.append(VersionTab('classic', self))
+        self.tabWidgets.append(VersionTab('tbc', self))
+        self.tabWidgets.append(VersionTab('wotlk', self))
         self.tabs.addTab(self.tabWidgets[0], 'Classic')
         self.tabs.addTab(self.tabWidgets[1], 'TBC')
         self.tabs.addTab(self.tabWidgets[2], 'WotLK')
@@ -108,8 +178,8 @@ class Cmangos(QWidget):
         self.tabStatus.currentChanged.connect(self.currentChangedStatus)
 
         self.mainLayout.addWidget(self.statusBox, 0, 0)
-        self.mainLayout.addWidget(self.tabs, 0, 1, 0, 2)
-        self.mainLayout.addWidget(self.tabStatus, 1, 0)
+        self.mainLayout.addWidget(self.tabs, 1, 0)
+        self.mainLayout.addWidget(self.tabStatus, 0, 1, 0, 2)
         self.setLayout(self.mainLayout)
 
         self.setFixedSize(self.mainLayout.sizeHint())

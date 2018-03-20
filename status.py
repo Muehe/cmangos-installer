@@ -1,11 +1,13 @@
 from os.path import isfile, isdir
 from os import devnull
 from subprocess import run
+import MySQLdb as mysql
 
 DEVNULL = open(devnull, 'w')
 
 class Status():
-    def __init__(self):
+    def __init__(self, parent):
+        self.parent = parent
         self.stats = {}
         if self.__checkBinary('systemctl'):
             self.services = 'systemctl'
@@ -34,3 +36,10 @@ class Status():
             self.stats['mysql_server'] = self.__checkBinary('mysqld')
         if value == None or value == 'mysql_running':
             self.stats['mysql_running'] = self.__checkService('mysql')
+        if value == None or value == 'mysql_connection':
+            try:
+                c = mysql.connect('localhost', self.parent.user, self.parent.pw)
+                c.close()
+                self.stats['mysql_connection'] = True
+            except:
+                self.stats['mysql_connection'] = False

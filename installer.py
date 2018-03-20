@@ -1,23 +1,20 @@
-from subprocess import run
+from subprocess import run, Popen, PIPE
 from multiprocessing import cpu_count
-from os import devnull, chdir, getcwd, makedirs
-from os.path import exists
+from os import devnull, chdir, getcwd, makedirs, stat, chmod, remove
+from os.path import isfile, isdir
 from re import sub
-from shutil import copytree
+from shutil import copytree, rmtree, copy2, move
 #from _mysql import connect
 import MySQLdb as mysql
 
 DEVNULL = open(devnull, 'w')
 
 class Installer():
-    def __init__(self, version, user, pw):
+    def __init__(self, version):
         self.version = version
-        self.user = user
-        self.pw = pw
-
     def copyClient(self, path):
         target = '{}/client'.format(self.version)
-        if exists(target):
+        if isdir(target):
             print('{} client dir already exists. aborting'.format(self.version))
             return False
         copytree(path, target)
@@ -29,10 +26,10 @@ class Installer():
         if mmaps:
             dirs.append('mmaps')
         for dir in dirs:
-            if exists('{}/server/bin/{}'.format(self.version,dir)):
+            if isdir('{}/server/bin/{}'.format(self.version,dir)):
                 print('{} {} target dir already exists. aborting'.format(self.version,dir))
                 return False
-            if not exists('{}/{}'.format(path,dir)):
+            if not isdir('{}/{}'.format(path,dir)):
                 print('{} {} source dir does not exist. aborting'.format(self.version,dir))
                 return False
         for dir in dirs:
@@ -40,7 +37,7 @@ class Installer():
         return True
 
     def cloneCore(self):
-        if exists('{}/mangos-{}'.format(self.version,self.version)):
+        if isdir('{}/mangos-{}'.format(self.version,self.version)):
             print('{} core target directory exists. aborting'.format(self.version))
             return False
         r = run(['git', 'clone', 'https://github.com/cmangos/mangos-{}.git'.format(self.version), '{}/mangos-{}'.format(self.version,self.version)], stdout=DEVNULL)
@@ -51,7 +48,7 @@ class Installer():
         return False
 
     def cloneDB(self):
-        if exists('{}/{}-db'.format(self.version,self.version)):
+        if isdir('{}/{}-db'.format(self.version,self.version)):
             print('{} db target directory exists. aborting'.format(self.version))
             return False
         r = run(['git', 'clone', 'https://github.com/cmangos/{}-db.git'.format(self.version), '{}/{}-db'.format(self.version,self.version)], stdout=DEVNULL)
@@ -95,9 +92,9 @@ class Installer():
         startPath = getcwd()
         buildPath = '{}/{}/build'.format(startPath, self.version)
         installPath = '{}/{}/server'.format(startPath, self.version)
-        if not exists(buildPath):
+        if not isdir(buildPath):
             makedirs(buildPath)
-        if not exists(installPath):
+        if not isdir(installPath):
             makedirs(installPath)
         # use all cores if core number was not passed
         if cores == None:
@@ -195,7 +192,7 @@ class Installer():
         if db == None:
             db = '{}-mangos'.format(self.version)
         configPath = '{}/{}-db/InstallFullDB.config'.format(self.version,self.version)
-        if not exists(configPath):
+        if not isdir(configPath):
             return False
         with open(configPath,'r') as f:
             content = f.read()
@@ -211,7 +208,7 @@ class Installer():
 
     def dbInstall(self, user='mangos', pw='mangos', db=None, core=None, wait='NO', host='localhost'):
         scriptPath = '{}/{}-db'.format(self.version,self.version)
-        if exists('{}/InstallFullDB.config'.format(scriptPath)):
+        if isfile('{}/InstallFullDB.config'.format(scriptPath)):
             print('config file exists. aborting')
             return False
         try:
@@ -232,7 +229,7 @@ class Installer():
 
     def dbUpdate(self, user='mangos', pw='mangos', db=None, core=None, wait='NO', host='localhost'):
         scriptPath = '{}/{}-db'.format(self.version,self.version)
-        if not exists('{}/InstallFullDB.config'.format(scriptPath)):
+        if not isfile('{}/InstallFullDB.config'.format(scriptPath)):
             print('config file does not exists. aborting')
             return False
         try:
@@ -247,3 +244,55 @@ class Installer():
         run(['./InstallFullDB.sh'])
         chdir(startPath)
         return True
+
+    def extractMaps(self, cores=None):
+        if not isdir('{}/server/bin/tools'.format(self.version)):
+            print('tools not found. aborting extraction.')
+            return False
+        if not isdir('{}/client'.format(self.version)):
+            print('client not found. aborting extraction.')
+            return False
+        if not isfile('{}/mangos-{}/contrib/extractor_scripts/ExtractResources.sh'.format(self.version, self.version)) or not isfile('{}/mangos-{}/contrib/extractor_scripts/MoveMapGen.sh'.format(self.version, self.version)):
+            print('scripts not found. aborting extraction.')
+            return False
+        copy2('{}/server/bin/tools/ad'.format(self.version), '{}/client'.format(self.version))
+        copy2('{}/server/bin/tools/MoveMapGen'.format(self.version), '{}/client'.format(self.version))
+        copy2('{}/server/bin/tools/vmap_assembler'.format(self.version), '{}/client'.format(self.version))
+        copy2('{}/server/bin/tools/vmap_extractor'.format(self.version), '{}/client'.format(self.version))
+        copy2('{}/mangos-{}/contrib/extractor_scripts/MoveMapGen.sh'.format(self.version, self.version), '{}/client'.format(self.version))
+        copy2('{}/mangos-{}/contrib/extractor_scripts/ExtractResources.sh'.format(self.version, self.version), '{}/client'.format(self.version))
+        copy2('{}/mangos-{}/contrib/extractor_scripts/offmesh.txt'.format(self.version, self.version), '{}/client'.format(self.version))
+        startPath = getcwd()
+        chdir('{}/client'.format(self.version))
+        chmod('MoveMapGen.sh', stat('MoveMapGen.sh').st_mode | 0o100)
+        chmod('ExtractResources.sh', stat('ExtractResources.sh').st_mode | 0o100)
+        ex = Popen(['./ExtractResources.sh', 'a'], stdin=PIPE)
+        # use all cores if core number was not passed
+        if cores == None:
+            cores = cpu_count()
+        ex.communicate(str.encode(str(cores)))
+        ret = ex.wait()
+        chdir(startPath)
+        print(ret)
+        if ret == 0:
+            if isdir('{}/server/bin/dbc'.format(self.version)):
+                rmtree('{}/server/bin/dbc'.format(self.version))
+            if isdir('{}/server/bin/maps'.format(self.version)):
+                rmtree('{}/server/bin/maps'.format(self.version))
+            if isdir('{}/server/bin/mmaps'.format(self.version)):
+                rmtree('{}/server/bin/mmaps'.format(self.version))
+            if isdir('{}/server/bin/vmaps'.format(self.version)):
+                rmtree('{}/server/bin/vmaps'.format(self.version))
+            for dir in ['dbc', 'maps', 'mmaps', 'vmaps']:
+                if isdir('{}/server/bin/{}'.format(self.version, dir)):
+                    rmtree('{}/server/bin/{}'.format(self.version, dir))
+                move('{}/client/{}'.format(self.version, dir), '{}/server/bin'.format(self.version))
+            for dir in ['Buildings', 'dbc', 'maps', 'mmaps', 'vmaps']:
+                if isdir('{}/client/{}'.format(self.version, dir)):
+                    rmtree('{}/client/{}'.format(self.version, dir))
+            for file in ['ad', 'MoveMapGen', 'vmap_assembler', 'vmap_extractor', 'ExtractResources.sh', 'MoveMapGen.sh', 'MaNGOSExtractor.log', 'MaNGOSExtractor_detailed.log', 'offmesh.txt']:
+                if isfile('{}/client/{}'.format(self.version, file)):
+                    remove('{}/client/{}'.format(self.version, file))
+            return True
+        else:
+            return False

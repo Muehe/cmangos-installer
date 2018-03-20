@@ -1,40 +1,29 @@
 # CMaNGOS install script
 
-This project contains just a Makefile which can be used to either install or update the CMaNGOS servers and databases on Ubuntu/Debian.
-
-**Note:** Extracting files from the client is not yet included.
+This project is written in Python 3 and can be used to install, update and start the CMaNGOS servers and databases (GNU/Linux only so far).
 
 ## Usage
 
-#### Options
-* **INIT** *(default: 0)*  
-  Generate directory structure and clone repositories.
-* **CORES** *(default: number of processors listed in `/proc/cpuinfo`)*  
-  The number of cores used for compilation.
+#### Software requirements
 
-#### Cmake options
-* **DEBUG** *(default: 0)*  
-  Compile debug version.
-* **PCH** *(default: 1)*  
-  Use precompiled headers.
-* **BUILD_EXTRACTORS** *(default: OFF)*  
-  Build extractor binaries.
-* **BUILD_PLAYERBOT** *(default: ON)*  
-  Include Playerbot in core build.
+**Debian/Ubuntu:**  
+`sudo apt-get install build-essential automake git autoconf patch libmysql++-dev mysql-server libtool libssl-dev grep sed binutils zlibc libc6 libbz2-dev cmake libboost-all-dev python3 python3-pip`
 
-#### Examples
-* Install only Classic:  
-  `make classic INIT=1`
-* Install Classic and WotLK:  
-  `make classic wotlk INIT=1`
-* Install all three versions:  
-  `make INIT=1`
-* Update only Classic:  
-  `make classic`
-* Update all three versions:  
-  `make`
+**Python:**  
+`pip3 install PyQt5 mysqlclient`
 
-Running e.g. `make classic INIT=1` will create a directory structure like this:
+#### Starting
+
+`python3 -m main`
+
+Running the installer and clicking these buttons:
+
+1. Copy Client
+2. Install Server
+3. Install Database
+4. Create Map Files/Copy Map Files
+
+should create a directory structure like this:
 
 ```
 cmangos-installer
@@ -46,34 +35,7 @@ cmangos-installer
     | - server
 ```
 
-## Software requirements
-
-```
-sudo apt-get install \
-    build-essential \
-    `#contained in build-essential: gcc` \
-    `#contained in build-essential: g++` \
-    `#contained in build-essential: make` \
-    automake \
-    git \
-    autoconf \
-    patch \
-    libmysql++-dev \
-    mysql-server \
-    `#alternative to mysql-server: mariadb-server` \
-    libtool \
-    libssl-dev \
-    grep \
-    sed \
-    binutils \
-    zlibc \
-    libc6 \
-    libbz2-dev \
-    cmake \
-    libboost-all-dev
-```
-
-`sudo apt-get install build-essential automake git autoconf patch libmysql++-dev mysql-server libtool libssl-dev grep sed binutils zlibc libc6 libbz2-dev cmake libboost-all-dev`
+and show the button to start the server.
 
 ## Setup MariaDB root password
 
