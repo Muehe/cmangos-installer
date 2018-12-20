@@ -1,16 +1,21 @@
 """This class draws a tab for the version passed to it (classic/tbc/wotlk)"""
 
-from PyQt5.QtWidgets import QApplication, qApp, QWidget, QVBoxLayout, QLabel, QGroupBox, QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QFileDialog, QMessageBox
-from PyQt5.QtCore import Qt
-
-from versionStatus import *
-from installer import *
-from dialogs import *
-
+# Standard libs
 from os import makedirs, getcwd, chdir
 from os.path import exists
 from subprocess import *
 from signal import *
+
+# Foreign libs
+from PyQt5.QtWidgets import QApplication, qApp, QWidget, QVBoxLayout, QLabel, QGroupBox, QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QFileDialog, QMessageBox
+from PyQt5.QtCore import Qt
+
+# Our modules
+from versionStatus import *
+from installer import *
+from dialogs import *
+
+
 
 class VersionTab(QWidget):
     """Draw a version tab.
