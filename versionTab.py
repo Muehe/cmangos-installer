@@ -1,3 +1,5 @@
+"""This class draws a tab for the version passed to it (classic/tbc/wotlk)"""
+
 from PyQt5.QtWidgets import QApplication, qApp, QWidget, QVBoxLayout, QLabel, QGroupBox, QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QFileDialog, QMessageBox
 from PyQt5.QtCore import Qt
 
@@ -11,12 +13,21 @@ from subprocess import *
 from signal import *
 
 class VersionTab(QWidget):
+    """Draw a version tab.
+    Display buttons and information about state of the installation (repos, DBs, etc.).
+    """
     def __init__(self, version, parent):
+        """Initialise the version tab.
+
+        Keyword arguments:
+        version -- the version string (classic, tbc, wotlk)
+        parent -- the main window
+        """
         super().__init__()
         self.version = version
         self.parent = parent
+        # Create status model and create a tab for it
         self.status = VersionStatus(version, parent)
-
         self.statusTab = QGroupBox('{} status'.format(version))
         self.statusTab.layout = QVBoxLayout()
         self.statusTab.labels = {}
@@ -37,6 +48,7 @@ class VersionTab(QWidget):
         self.__updateStatusPage()
         self.statusTab.setLayout(self.statusTab.layout)
 
+        # Create a tab for the control buttons
         self.installer = Installer(version)
         self.tabLayout = QVBoxLayout()
         self.buttons = {}
@@ -63,10 +75,20 @@ class VersionTab(QWidget):
         self.buttons['remap'] = self.__createButton('Recreate Map Files', 'Run a new map extraction and replace current files.')
         self.buttons['remap'].clicked.connect(self.__extract)
         self.tabLayout.setAlignment(Qt.AlignTop)
+        # Update buttons accordings to version status
         self.__updateButtons()
         self.setLayout(self.tabLayout)
 
+    def __createButton(self, label, tooltip=None):
+        """Create a button with a tooltip"""
+        btn = QPushButton(label)
+        if tooltip:
+            btn.setToolTip(tooltip)
+        self.tabLayout.addWidget(btn)
+        return btn
+
     def __extract(self):
+        """Extract the maps"""
         self.__deactivateWindow('Extracting maps. Please wait...')
         success = self.installer.extractMaps()
         if success:
@@ -76,6 +98,7 @@ class VersionTab(QWidget):
         self.update()
 
     def __serverStart(self):
+        """Start realmd and mangosd"""
         startPath = getcwd()
         serverPath = '{}/server/bin'.format(self.version)
         chdir(serverPath)
@@ -91,6 +114,7 @@ class VersionTab(QWidget):
         self.update()
 
     def __serverStop(self):
+        """Stop both server processes"""
         self.mangosd.communicate(b'server shutdown 1')
         print('mangosd exited with: {}'.format(self.mangosd.wait()))
         self.mangosd = None
@@ -100,6 +124,7 @@ class VersionTab(QWidget):
         self.update()
 
     def __compile(self):
+        """(Re-)compile the core"""
         self.__deactivateWindow('Compiling core. Please wait...')
         success = self.installer.compileCore()
         if success:
@@ -109,11 +134,13 @@ class VersionTab(QWidget):
         self.update()
 
     def __config(self):
+        """Apply current settings to config files"""
         self.installer.applyCoreConfig(self.parent.user, self.parent.pw)
         self.installer.applyRealmConfig(self.parent.user, self.parent.pw)
         self.update()
 
     def __client(self):
+        """Show a dialog window for copying a client"""
         dialog = QFileDialog(self)
         dialog.setFileMode(QFileDialog.Directory)
         path = dialog.getExistingDirectory(self, '{} client source path'.format(self.version))
@@ -135,6 +162,7 @@ class VersionTab(QWidget):
         self.update()
 
     def __maps(self):
+        """Show a dialog window for copying map files"""
         dialog = QFileDialog(self)
         dialog.setFileMode(QFileDialog.Directory)
         path = dialog.getExistingDirectory(self, '{} dbc/maps/vmaps/mmaps path'.format(self.version))
@@ -149,6 +177,7 @@ class VersionTab(QWidget):
         self.update()
 
     def __server(self):
+        """Clone and compile server"""
         self.__deactivateWindow('Installing core. Please wait...'.format(self.version))
         self.installer.cloneCore()
         success = self.installer.compileCore()
@@ -159,6 +188,7 @@ class VersionTab(QWidget):
             self.__reactivateWindow('Error! Failed installing {} core.'.format(self.version))
 
     def __databaseInstall(self):
+        """Clone/Pull and install database"""
         dialog = QDialog(self.parent)
         layout = QFormLayout()
         layout.addRow(QLabel('MySQL Root Password:'))
@@ -198,6 +228,9 @@ class VersionTab(QWidget):
         self.update()
 
     def __databaseUpdate(self):
+        """Pull and install the database
+        TODO: Updates to characters/realmd
+        """
         if not self.status.directories['{}-db'.format(self.version)] or not self.status.connection or not self.status.database['mangos'] or not  self.status.database['realmd'] or not  self.status.database['characters']:
             return
         self.__deactivateWindow('Updating database. Please wait...'.format(self.version))
@@ -208,43 +241,8 @@ class VersionTab(QWidget):
             self.__reactivateWindow('Error! {} database update failed.'.format(self.version))
         self.update()
 
-    def __getStatusChar(self, value):
-        if self.status.directories[value]:
-            return '☑'
-        else:
-            return '☐'
-
-    def __updateLabel(self, label, text):
-        char = self.__getStatusChar(label)
-        self.statusTab.labels[label].setText(text.format(char))
-
-    def __updateServerLabel(self, label, text):
-        labels = {
-            'server_install': 'server',
-            'server_config': 'config',
-            'server_maps': 'maps',
-        }
-        if self.status.install[labels[label]]:
-            char = '☑'
-        else:
-            char = '☐'
-        self.statusTab.labels[label].setText(text.format(char))
-
-    def __updateDBLabel(self, label, text):
-        if self.status.database[label]:
-            char = '☑'
-        else:
-            char = '☐'
-        self.statusTab.labels[label].setText(text.format(char))
-
-    def __createButton(self, label, tooltip=None):
-        btn = QPushButton(label)
-        if tooltip:
-            btn.setToolTip(tooltip)
-        self.tabLayout.addWidget(btn)
-        return btn
-
     def __updateButtons(self):
+        """Show/Hide buttons according to current version status"""
         if not (self.status.install['maps'] and self.status.directories['client']):
             self.buttons['remap'].hide()
         else:
@@ -313,7 +311,41 @@ class VersionTab(QWidget):
             self.buttons['server_stop'].hide()
             self.buttons['server_start'].hide()
 
+    def __getStatusChar(self, value):
+        """Helper for status update"""
+        if self.status.directories[value]:
+            return '☑'
+        else:
+            return '☐'
+
+    def __updateLabel(self, label, text):
+        """Helper for status update"""
+        char = self.__getStatusChar(label)
+        self.statusTab.labels[label].setText(text.format(char))
+
+    def __updateServerLabel(self, label, text):
+        """Helper for status update"""
+        labels = {
+            'server_install': 'server',
+            'server_config': 'config',
+            'server_maps': 'maps',
+        }
+        if self.status.install[labels[label]]:
+            char = '☑'
+        else:
+            char = '☐'
+        self.statusTab.labels[label].setText(text.format(char))
+
+    def __updateDBLabel(self, label, text):
+        """Helper for status update"""
+        if self.status.database[label]:
+            char = '☑'
+        else:
+            char = '☐'
+        self.statusTab.labels[label].setText(text.format(char))
+
     def __updateStatusPage(self):
+        """Update the status display"""
         self.__updateLabel(self.version, '{} base directory')
         self.__updateLabel('build', '    {} build directory')
         self.__updateLabel('client', '    {} client directory')
@@ -330,17 +362,20 @@ class VersionTab(QWidget):
         self.__updateDBLabel('characters', '        {} characters db')
 
     def update(self):
+        """Update the version information and buttons"""
         self.status.update()
         self.__updateStatusPage()
         self.__updateButtons()
 
     def __deactivateWindow(self, message):
+        """Deactivate window while an operation is in progress"""
         self.parent.setWindowTitle(message)
         self.parent.setDisabled(True)
         self.parent.blockSignals(True)
         QApplication.processEvents()
 
     def __reactivateWindow(self, message):
+        """Reactivate the window after operation has finished"""
         self.parent.blockSignals(False)
         self.parent.setEnabled(True)
         self.parent.setWindowTitle('CMangos Control Center')
