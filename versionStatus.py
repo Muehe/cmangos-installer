@@ -52,15 +52,15 @@ class VersionStatus():
             self.database['realmd'] = False
             self.database['characters'] = False
             return
-        if cur.execute('SHOW DATABASES LIKE \'{}-mangos\''.format(self.version)) == 0:
+        if cur.execute('SHOW DATABASES LIKE \'{}mangos\''.format(self.version)) == 0:
             self.database['mangos'] = False
         else:
             self.database['mangos'] = True
-        if cur.execute('SHOW DATABASES LIKE \'{}-realmd\''.format(self.version)) == 0:
+        if cur.execute('SHOW DATABASES LIKE \'{}realmd\''.format(self.version)) == 0:
             self.database['realmd'] = False
         else:
             self.database['realmd'] = True
-        if cur.execute('SHOW DATABASES LIKE \'{}-characters\''.format(self.version)) == 0:
+        if cur.execute('SHOW DATABASES LIKE \'{}characters\''.format(self.version)) == 0:
             self.database['characters'] = False
         else:
             self.database['characters'] = True

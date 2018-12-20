@@ -47,6 +47,14 @@ class Installer():
         print('error during cloning of {} core '.format(self.version))
         return False
 
+    def pullCore(self):
+        r = run(['git', 'pull'], stdout=DEVNULL)
+        if r.returncode == 0:
+            print('{} core pulled'.format(self.version))
+            return True
+        print('error during pulling of {} core '.format(self.version))
+        return False
+
     def cloneDB(self):
         if isdir('{}/{}-db'.format(self.version,self.version)):
             print('{} db target directory exists. aborting'.format(self.version))
@@ -58,19 +66,27 @@ class Installer():
         print('error during cloning of {} db '.format(self.version))
         return False
 
+    def pullDB(self):
+        r = run(['git', 'pull'], stdout=DEVNULL)
+        if r.returncode == 0:
+            print('{} db pulled'.format(self.version))
+            return True
+        print('error during pulling of {} db '.format(self.version))
+        return False
+
     def applyCoreConfig(self, user='mangos', pw='mangos', targetFile='mangosd', log=0, mangos=False, realmd=False, chars=False):
         if not mangos:
-            mangos = '{}-mangos'.format(self.version)
+            mangos = '{}mangos'.format(self.version)
         if not realmd:
-            realmd = '{}-realmd'.format(self.version)
+            realmd = '{}realmd'.format(self.version)
         if not chars:
-            chars = '{}-characters'.format(self.version)
+            chars = '{}characters'.format(self.version)
         path = '{}/{}/server/etc'.format(getcwd(), self.version)
         with open('{}/mangosd.conf.dist'.format(path), 'r') as dist:
             content = dist.read()
-        content = sub(r'mangos;mangos;realmd', r'{};{};{}'.format(user,pw,realmd), content)
-        content = sub(r'mangos;mangos;mangos', r'{};{};{}'.format(user,pw,mangos), content)
-        content = sub(r'mangos;mangos;characters', r'{};{};{}'.format(user,pw,chars), content)
+        content = sub(r'mangos;mangos;{}realmd'.format(self.version), r'{};{};{}'.format(user,pw,realmd), content)
+        content = sub(r'mangos;mangos;{}mangos'.format(self.version), r'{};{};{}'.format(user,pw,mangos), content)
+        content = sub(r'mangos;mangos;{}characters'.format(self.version), r'{};{};{}'.format(user,pw,chars), content)
         content = sub(r'LogLevel = 3', r'LogLevel = 1'.format(log), content)
         with open('{}/{}.conf'.format(path,targetFile), 'w') as conf:
             conf.write(content)
@@ -78,11 +94,11 @@ class Installer():
 
     def applyRealmConfig(self, user='mangos', pw='mangos', targetFile='realmd', realmd=False):
         if not realmd:
-            realmd = '{}-realmd'.format(self.version)
+            realmd = '{}realmd'.format(self.version)
         path = '{}/{}/server/etc'.format(getcwd(), self.version)
         with open('{}/realmd.conf.dist'.format(path), 'r') as dist:
             content = dist.read()
-        content = sub(r'mangos;mangos;realmd', r'{};{};{}'.format(user,pw,realmd), content)
+        content = sub(r'mangos;mangos;{}realmd'.format(self.version), r'{};{};{}'.format(user,pw,realmd), content)
         with open('{}/{}.conf'.format(path,targetFile), 'w') as conf:
             conf.write(content)
         return True
@@ -138,11 +154,11 @@ class Installer():
     def dbSetup(self, rootpw, user='mangos', pw='mangos', host='localhost', mangos=None, realmd=None, chars=None, createMysqlUser=False):
         # set up defaults
         if mangos == None:
-            mangos = '{}-mangos'.format(self.version)
+            mangos = '{}mangos'.format(self.version)
         if realmd == None:
-            realmd = '{}-realmd'.format(self.version)
+            realmd = '{}realmd'.format(self.version)
         if chars == None:
-            chars = '{}-characters'.format(self.version)
+            chars = '{}characters'.format(self.version)
         # connect to mysql
         db = mysql.connect(host, 'root', rootpw)
         cursor = db.cursor()
@@ -190,9 +206,9 @@ class Installer():
         if core == None:
             core = '../mangos-{}'.format(self.version)
         if db == None:
-            db = '{}-mangos'.format(self.version)
+            db = '{}mangos'.format(self.version)
         configPath = '{}/{}-db/InstallFullDB.config'.format(self.version,self.version)
-        if not isdir(configPath):
+        if not isfile(configPath):
             return False
         with open(configPath,'r') as f:
             content = f.read()
@@ -208,19 +224,20 @@ class Installer():
 
     def dbInstall(self, user='mangos', pw='mangos', db=None, core=None, wait='NO', host='localhost'):
         scriptPath = '{}/{}-db'.format(self.version,self.version)
-        if isfile('{}/InstallFullDB.config'.format(scriptPath)):
-            print('config file exists. aborting')
-            return False
+        startPath = getcwd()
         try:
             con = mysql.connect(host, user, pw)
             con.close()
         except:
             print('error connecting to user {}@{}. aborting'.format(user, host))
             return False
-        startPath = getcwd()
-        chdir(scriptPath)
-        run(['./InstallFullDB.sh'])
-        chdir(startPath)
+        if isfile('{}/InstallFullDB.config'.format(scriptPath)):
+            print('config file exists. applying settings.')
+        else:
+            print('config file does not exist. creating.')
+            chdir(scriptPath)
+            run(['./InstallFullDB.sh'])
+            chdir(startPath)
         self.applyDBConfig(user, pw, db, core, wait, host)
         chdir(scriptPath)
         run(['./InstallFullDB.sh'])

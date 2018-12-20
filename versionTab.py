@@ -172,8 +172,24 @@ class VersionTab(QWidget):
         buttonBox.rejected.connect(dialog.reject)
         if(dialog.exec_()):
             self.__deactivateWindow('Installing {} database'.format(self.version))
-            self.installer.cloneDB()
-            self.installer.dbSetup(root.text(), self.parent.user, self.parent.pw)
+            if not self.status.directories['{}-db/.git'.format(self.version)]:
+                success = self.installer.cloneDB()
+                if not success:
+                    print('Cloning DB failed. Aborting.')
+                    return False
+            else:
+                success = self.installer.pullDB()
+                if not success:
+                    print('Updating DB repo failed. Aborting.')
+                    return False
+                success = self.installer.pullCore()
+                if not success:
+                    print('Updating core repo failed. Aborting.')
+                    return False
+            success = self.installer.dbSetup(root.text(), self.parent.user, self.parent.pw)
+            if not success:
+                print('DB initialization failed. Aborting.')
+                return False
             success = self.installer.dbInstall(self.parent.user, self.parent.pw)
             if success:
                 self.__reactivateWindow('{} database installed successfully.'.format(self.version))
