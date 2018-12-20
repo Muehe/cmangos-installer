@@ -51,7 +51,7 @@ class Installer():
                 print('{} {} target dir already exists. aborting'.format(self.version,dir))
                 return False
 
-        if not isdir('{}/{}'.format(path,dir)):
+            if not isdir('{}/{}'.format(path,dir)):
                 print('{} {} source dir does not exist. aborting'.format(self.version,dir))
                 return False
 
