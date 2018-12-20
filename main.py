@@ -63,7 +63,7 @@ class Cmangos(QWidget):
         self.__initUI()
 
     def __getLogin(self):
-    """Ask user for credientals to DB."""
+        """Ask user for credientals to DB."""
 
         dialog = QDialog(self)
         layout = QFormLayout()
