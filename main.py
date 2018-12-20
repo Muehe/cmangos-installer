@@ -181,7 +181,7 @@ class Cmangos(QWidget):
                 msg.setText('Failed creating user `{}`.'.format(self.user))
                 msg.exec_()
 
-                self.blockSignals(False)
+            self.blockSignals(False)
             self.setEnabled(True)
             self.setWindowTitle('CMangos Control Center')
 
